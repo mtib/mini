@@ -1,6 +1,12 @@
 #!/usr/bin/env bun
 
-const SSH_HOST = "mabe@mac-mini-01";
+const username = process.env.MINI_USERNAME;
+const host = process.env.MINI_HOST;
+if (!username || !host) {
+  console.error("Missing MINI_USERNAME or MINI_HOST environment variables.");
+  process.exit(1);
+}
+const SSH_HOST = `${username}@${host}`;
 
 async function ssh(...args: string[]): Promise<string> {
   const proc = Bun.spawn(["ssh", SSH_HOST, ...args], {
