@@ -30,21 +30,6 @@ function parseSessions(output: string): string[] {
     .filter(Boolean);
 }
 
-function usedNumbers(sessions: string[]): Set<number> {
-  const nums = new Set<number>();
-  for (const name of sessions) {
-    const match = name.match(/^claude-(\d+)$/);
-    if (match) nums.add(parseInt(match[1]!, 10));
-  }
-  return nums;
-}
-
-function smallestUnused(used: Set<number>): number {
-  let n = 1;
-  while (used.has(n)) n++;
-  return n;
-}
-
 async function list() {
   try {
     const output = await ssh("tmux", "list-sessions");
@@ -58,102 +43,38 @@ async function list() {
   }
 }
 
-async function newSession() {
-  let sessions: string[] = [];
-  try {
-    const output = await ssh("tmux", "list-sessions");
-    sessions = parseSessions(output);
-  } catch {
-    // no sessions yet
+async function newSession(name?: string) {
+  if (!name) {
+    let sessions: string[] = [];
+    try {
+      const output = await ssh("tmux", "list-sessions");
+      sessions = parseSessions(output);
+    } catch {}
+
+    const used = new Set<number>();
+    for (const s of sessions) {
+      const m = s.match(/^claude-(\d+)$/);
+      if (m) used.add(parseInt(m[1]!, 10));
+    }
+    let n = 1;
+    while (used.has(n)) n++;
+    name = `claude-${n}`;
   }
 
-  const n = smallestUnused(usedNumbers(sessions));
-  const name = `claude-${n}`;
-
-  // Create session with claude in left pane, shell in right pane, both in ~/workspace.
-  // Build as a single shell command string so SSH passes it correctly.
-  const setup = [
-    `tmux new-session -d -s ${name} -c ~/workspace`,
-    `tmux send-keys -t ${name} 'claude --enable-auto-mode' Enter`,
-    `tmux split-window -h -t ${name} -c ~/workspace`,
-    `tmux select-pane -t ${name}:.0`,
-    `tmux attach-session -t ${name}`,
-  ].join(" && ");
-
-  const proc = Bun.spawn(["ssh", "-t", SSH_HOST, setup], {
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  await proc.exited;
-}
-
-function usedWarpNumbers(sessions: string[]): Set<number> {
-  const nums = new Set<number>();
-  for (const name of sessions) {
-    const match = name.match(/^claude-warp-(\d+)$/);
-    if (match) nums.add(parseInt(match[1]!, 10));
-  }
-  return nums;
-}
-
-async function warpNew() {
-  let sessions: string[] = [];
-  try {
-    const output = await ssh("tmux", "list-sessions");
-    sessions = parseSessions(output);
-  } catch {
-    // no sessions yet
+  if (name.startsWith("claude-")) {
+    await ssh(`tmux new-session -d -s ${name} -c ~/workspace 'claude --enable-auto-mode'`);
+  } else {
+    await ssh(`tmux new-session -d -s ${name} -c ~/workspace`);
   }
 
-  const n = smallestUnused(usedWarpNumbers(sessions));
-  const name = `claude-warp-${n}`;
-
-  // Create session with two windows: "claude" and "shell", both in ~/workspace.
-  const setup = [
-    `tmux new-session -d -s ${name} -c ~/workspace -n claude`,
-    `tmux send-keys -t ${name}:claude 'claude --enable-auto-mode' Enter`,
-    `tmux new-window -t ${name} -c ~/workspace -n shell`,
-  ].join(" && ");
-
-  await ssh(setup);
-  await warpAttach(name);
-}
-
-async function warpAttach(target: string) {
-  const shellSshCmd = `ssh -t ${SSH_HOST} tmux attach-session -t '${target}:shell'`;
-
-  // AppleScript: split Warp right (Cmd+D), then type SSH command for the shell window.
-  const script = `
-delay 1
-tell application "System Events"
-  keystroke "d" using {command down}
-  delay 1
-  keystroke "${shellSshCmd}"
-  key code 36
-end tell`;
-
-  // Start SSH for claude window in current (left) pane.
-  const proc = Bun.spawn(
-    ["ssh", "-t", SSH_HOST, "tmux", "attach-session", "-t", `${target}:claude`],
-    { stdin: "inherit", stdout: "inherit", stderr: "inherit" },
-  );
-
-  // Launch Warp split script in background.
-  Bun.spawn(["osascript", "-e", script], {
-    stdout: "ignore",
-    stderr: "ignore",
-  });
-
-  await proc.exited;
+  await attach(name);
 }
 
 async function attach(target: string) {
-  const proc = Bun.spawn(["ssh", "-t", SSH_HOST, "tmux", "attach-session", "-t", target], {
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
-  });
+  const proc = Bun.spawn(
+    ["ssh", "-t", SSH_HOST, "tmux", "attach-session", "-t", target],
+    { stdin: "inherit", stdout: "inherit", stderr: "inherit" },
+  );
   const exitCode = await proc.exited;
   if (exitCode !== 0) {
     console.error(`Failed to attach to session "${target}".`);
@@ -161,72 +82,45 @@ async function attach(target: string) {
   }
 }
 
-const [command, ...args] = process.argv.slice(2);
+const commands = ["list", "new", "attach"];
+
+function resolveCommand(input: string): string | null {
+  const matches = commands.filter((c) => c.startsWith(input));
+  return matches.length === 1 ? matches[0]! : null;
+}
+
+const [rawCommand, ...args] = process.argv.slice(2);
+const command = rawCommand ? resolveCommand(rawCommand) ?? rawCommand : undefined;
 
 switch (command) {
   case "list":
-  case "ls":
     await list();
     break;
   case "new":
-    await newSession();
+    await newSession(args[0]);
     break;
-  case "warp": {
-    const [warpCmd, ...warpArgs] = args;
-    switch (warpCmd) {
-      case "new":
-        await warpNew();
-        break;
-      case "attach":
-      case "at": {
-        if (!warpArgs[0]) {
-          console.error("Usage: mini warp attach <n>");
-          process.exit(1);
-        }
-        const t = /^\d+$/.test(warpArgs[0]) ? `claude-warp-${warpArgs[0]}` : warpArgs[0];
-        await warpAttach(t);
-        break;
-      }
-      default:
-        if (warpCmd && /^\d+$/.test(warpCmd)) {
-          await warpAttach(`claude-warp-${warpCmd}`);
-        } else if (warpCmd) {
-          await warpAttach(warpCmd);
-        } else {
-          console.log(`Usage: mini warp <command>
-
-Commands:
-  new                Create & attach to a new claude-warp-<n> session
-  attach, at <n>     Attach to an existing warp session
-  <n>                Shorthand for attach claude-warp-<n>`);
-        }
-        break;
-    }
-    break;
-  }
   case "attach":
-  case "a":
     if (!args[0]) {
-      console.error("Usage: mini attach <session-name>");
+      console.error("Usage: mini attach <name>");
       process.exit(1);
     }
     await attach(args[0]);
     break;
   default:
-    if (command) {
-      const target = /^\d+$/.test(command) ? `claude-${command}` : command;
+    if (rawCommand) {
+      const target = /^\d+$/.test(rawCommand) ? `claude-${rawCommand}` : rawCommand;
       await attach(target);
     } else {
       console.log(`Usage: mini <command>
 
 Commands:
-  list, ls          List tmux sessions on mac-mini-01
-  new               Create & attach to a new claude-<n> session
-  attach, a <name>  Attach to an existing session
-  <name>            Shorthand for attach <name>
+  list              List tmux sessions
+  new [name]        Create & attach (default: claude-<n>)
+  attach <name>     Attach to an existing session
+  <name>            Shorthand for attach
   <n>               Shorthand for attach claude-<n>
-  warp new          Create & attach to a new claude-warp-<n> session
-  warp [at] <n>     Attach to a warp session (Warp split: claude | shell)`);
+
+Any unambiguous prefix works (e.g. mini l, mini n, mini at).`);
     }
     break;
 }
