@@ -88,6 +88,66 @@ async function newSession() {
   await proc.exited;
 }
 
+function usedWarpNumbers(sessions: string[]): Set<number> {
+  const nums = new Set<number>();
+  for (const name of sessions) {
+    const match = name.match(/^claude-warp-(\d+)$/);
+    if (match) nums.add(parseInt(match[1]!, 10));
+  }
+  return nums;
+}
+
+async function warpNew() {
+  let sessions: string[] = [];
+  try {
+    const output = await ssh("tmux", "list-sessions");
+    sessions = parseSessions(output);
+  } catch {
+    // no sessions yet
+  }
+
+  const n = smallestUnused(usedWarpNumbers(sessions));
+  const name = `claude-warp-${n}`;
+
+  // Create session with two windows: "claude" and "shell", both in ~/workspace.
+  const setup = [
+    `tmux new-session -d -s ${name} -c ~/workspace -n claude`,
+    `tmux send-keys -t ${name}:claude 'claude --enable-auto-mode' Enter`,
+    `tmux new-window -t ${name} -c ~/workspace -n shell`,
+  ].join(" && ");
+
+  await ssh(setup);
+  await warpAttach(name);
+}
+
+async function warpAttach(target: string) {
+  const shellSshCmd = `ssh -t ${SSH_HOST} tmux attach-session -t '${target}:shell'`;
+
+  // AppleScript: split Warp right (Cmd+D), then type SSH command for the shell window.
+  const script = `
+delay 1
+tell application "System Events"
+  keystroke "d" using {command down}
+  delay 1
+  keystroke "${shellSshCmd}"
+  key code 36
+end tell`;
+
+  // Start SSH for claude window in current (left) pane.
+  const proc = Bun.spawn(
+    ["ssh", "-t", SSH_HOST, "tmux", "attach-session", "-t", `${target}:claude`],
+    { stdin: "inherit", stdout: "inherit", stderr: "inherit" },
+  );
+
+  // Launch Warp split script in background.
+  Bun.spawn(["osascript", "-e", script], {
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+
+  await proc.exited;
+}
+
 async function attach(target: string) {
   const proc = Bun.spawn(["ssh", "-t", SSH_HOST, "tmux", "attach-session", "-t", target], {
     stdin: "inherit",
@@ -111,6 +171,39 @@ switch (command) {
   case "new":
     await newSession();
     break;
+  case "warp": {
+    const [warpCmd, ...warpArgs] = args;
+    switch (warpCmd) {
+      case "new":
+        await warpNew();
+        break;
+      case "attach":
+      case "at": {
+        if (!warpArgs[0]) {
+          console.error("Usage: mini warp attach <n>");
+          process.exit(1);
+        }
+        const t = /^\d+$/.test(warpArgs[0]) ? `claude-warp-${warpArgs[0]}` : warpArgs[0];
+        await warpAttach(t);
+        break;
+      }
+      default:
+        if (warpCmd && /^\d+$/.test(warpCmd)) {
+          await warpAttach(`claude-warp-${warpCmd}`);
+        } else if (warpCmd) {
+          await warpAttach(warpCmd);
+        } else {
+          console.log(`Usage: mini warp <command>
+
+Commands:
+  new                Create & attach to a new claude-warp-<n> session
+  attach, at <n>     Attach to an existing warp session
+  <n>                Shorthand for attach claude-warp-<n>`);
+        }
+        break;
+    }
+    break;
+  }
   case "attach":
   case "a":
     if (!args[0]) {
@@ -131,7 +224,9 @@ Commands:
   new               Create & attach to a new claude-<n> session
   attach, a <name>  Attach to an existing session
   <name>            Shorthand for attach <name>
-  <n>               Shorthand for attach claude-<n>`);
+  <n>               Shorthand for attach claude-<n>
+  warp new          Create & attach to a new claude-warp-<n> session
+  warp [at] <n>     Attach to a warp session (Warp split: claude | shell)`);
     }
     break;
 }

@@ -35,3 +35,18 @@ mini <n>           # shorthand for attach claude-<n>
 - **Right**: shell
 
 Session names follow `claude-<n>` where `n` is the smallest unused integer starting from 1.
+
+### Warp mode
+
+```
+mini warp new          # create claude-warp-<n> session and attach
+mini warp attach <n>   # attach to existing warp session
+mini warp at <n>       # alias for attach
+mini warp <n>          # shorthand for attach claude-warp-<n>
+```
+
+`mini warp new` creates a tmux session with two **windows** (not panes): `claude` and `shell`, both in `~/workspace`.
+
+On attach, Warp splits locally via AppleScript (Cmd+D):
+- **Left split**: SSH into the `claude` tmux window (`claude --enable-auto-mode`)
+- **Right split**: SSH into the `shell` tmux window
