@@ -26,7 +26,7 @@ function parseSessions(output: string): string[] {
   if (!output) return [];
   return output
     .split("\n")
-    .map((line) => line.split(":")[0].trim())
+    .map((line) => line.split(":")[0]!.trim())
     .filter(Boolean);
 }
 
@@ -34,7 +34,7 @@ function usedNumbers(sessions: string[]): Set<number> {
   const nums = new Set<number>();
   for (const name of sessions) {
     const match = name.match(/^claude-(\d+)$/);
-    if (match) nums.add(parseInt(match[1], 10));
+    if (match) nums.add(parseInt(match[1]!, 10));
   }
   return nums;
 }
