@@ -71,6 +71,7 @@ async function newSession(name?: string) {
 }
 
 async function attach(target: string) {
+  process.stdout.write(`\x1b]0;mini - ${target}\x07`);
   const proc = Bun.spawn(
     ["ssh", "-t", SSH_HOST, "tmux", "attach-session", "-t", target],
     { stdin: "inherit", stdout: "inherit", stderr: "inherit" },
