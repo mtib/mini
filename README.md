@@ -32,3 +32,7 @@ mini <n>           # shorthand for attach claude-<n>
 ```
 
 Sessions are created in `~/workspace`. If the name starts with `claude-`, `claude --enable-auto-mode` runs as the session command (session closes when claude exits).
+
+## Warp
+
+For the best experience using Warp as your terminal, see [this gist](https://gist.github.com/mtib/4d2f595963b1635fbca9ed550a630357) for remote machine configuration.
