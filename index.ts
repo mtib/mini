@@ -121,7 +121,8 @@ switch (command) {
     break;
   default:
     if (command) {
-      await attach(command);
+      const target = /^\d+$/.test(command) ? `claude-${command}` : command;
+      await attach(target);
     } else {
       console.log(`Usage: mini <command>
 
@@ -129,7 +130,8 @@ Commands:
   list, ls          List tmux sessions on mac-mini-01
   new               Create & attach to a new claude-<n> session
   attach, a <name>  Attach to an existing session
-  <name>            Shorthand for attach <name>`);
+  <name>            Shorthand for attach <name>
+  <n>               Shorthand for attach claude-<n>`);
     }
     break;
 }

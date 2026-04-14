@@ -27,6 +27,7 @@ mini new           # create claude-<n> session and attach
 mini attach <name> # attach to existing session
 mini a <name>      # alias for attach
 mini <name>        # shorthand for attach
+mini <n>           # shorthand for attach claude-<n>
 ```
 
 `mini new` creates a tmux session with two panes in `~/workspace`:
