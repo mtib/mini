@@ -1,15 +1,18 @@
 # mini
 
-To install dependencies:
+CLI for managing tmux sessions on mac-mini-01 via SSH.
+
+## Install
 
 ```bash
-bun install
+bun link
 ```
 
-To run:
+## Usage
 
-```bash
-bun run index.ts
 ```
-
-This project was created using `bun init` in bun v1.3.7. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+mini list          # list tmux sessions
+mini new           # create claude-<n> session and attach
+mini <name>        # attach to existing session
+mini attach <name> # attach to existing session
+```

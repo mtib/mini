@@ -64,7 +64,17 @@ async function newSession() {
   const n = smallestUnused(usedNumbers(sessions));
   const name = `claude-${n}`;
 
-  const proc = Bun.spawn(["ssh", "-t", SSH_HOST, "tmux", "new-session", "-s", name], {
+  // Create session with claude in left pane, shell in right pane, both in ~/workspace.
+  // Build as a single shell command string so SSH passes it correctly.
+  const setup = [
+    `tmux new-session -d -s ${name} -c ~/workspace`,
+    `tmux send-keys -t ${name} 'claude --enable-auto-mode' Enter`,
+    `tmux split-window -h -t ${name} -c ~/workspace`,
+    `tmux select-pane -t ${name}:.0`,
+    `tmux attach-session -t ${name}`,
+  ].join(" && ");
+
+  const proc = Bun.spawn(["ssh", "-t", SSH_HOST, setup], {
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit",
