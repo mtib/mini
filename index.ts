@@ -83,6 +83,7 @@ async function attach(target: string) {
 }
 
 const commands = ["list", "new", "attach"];
+const aliases: Record<string, string> = { ls: "list" };
 
 function resolveCommand(input: string): string | null {
   const matches = commands.filter((c) => c.startsWith(input));
@@ -90,7 +91,7 @@ function resolveCommand(input: string): string | null {
 }
 
 const [rawCommand, ...args] = process.argv.slice(2);
-const command = rawCommand ? resolveCommand(rawCommand) ?? rawCommand : undefined;
+const command = rawCommand ? aliases[rawCommand] ?? resolveCommand(rawCommand) ?? rawCommand : undefined;
 
 switch (command) {
   case "list":
