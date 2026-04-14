@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 
-const username = process.env.MINI_USERNAME;
+const username = process.env.MINI_USERNAME || process.env.USER;
 const host = process.env.MINI_HOST;
 if (!username || !host) {
-  console.error("Missing MINI_USERNAME or MINI_HOST environment variables.");
+  console.error("Missing MINI_HOST environment variable.");
   process.exit(1);
 }
 const SSH_HOST = `${username}@${host}`;
