@@ -30,16 +30,48 @@ function parseSessions(output: string): string[] {
     .filter(Boolean);
 }
 
+function relative(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 async function list() {
+  let output: string;
   try {
-    const output = await ssh("tmux", "list-sessions");
-    console.log(output);
+    output = await ssh("tmux", "list-sessions");
   } catch (e: any) {
     if (e.message.includes("no server running") || e.message.includes("no sessions")) {
       console.log("No tmux sessions.");
-    } else {
-      throw e;
+      return;
     }
+    throw e;
+  }
+
+  const tty = process.stdout.isTTY;
+  const bold = tty ? "\x1b[1m" : "";
+  const orange = tty ? "\x1b[1;38;5;208m" : "";
+  const dim = tty ? "\x1b[2m" : "";
+  const reset = tty ? "\x1b[0m" : "";
+
+  const sessions = output.split("\n").map((line) => {
+    const name = line.split(":")[0]!.trim();
+    const created = line.match(/\(created (.+)\)/)?.[1] ?? "";
+    return { name, created };
+  });
+
+  const nameWidth = Math.max(...sessions.map((s) => s.name.length));
+
+  for (const s of sessions) {
+    const style = s.name.startsWith("claude") ? orange : bold;
+    const name = `${style}${s.name.padEnd(nameWidth)}${reset}`;
+    const age = s.created ? `${dim}${relative(new Date(s.created))}${reset}` : "";
+    console.log(`  ${name}  ${age}`);
   }
 }
 
@@ -72,7 +104,16 @@ async function connect(name: string) {
 
 const [command] = process.argv.slice(2);
 
-if (!command) {
+if (command === "completions") {
+  console.log(`#compdef mini
+_mini() {
+  local -a sessions commands
+  commands=('list:List tmux sessions' 'ls:Alias for list')
+  sessions=(\${(f)"$(ssh ${SSH_HOST} tmux list-sessions -F '#S' 2>/dev/null)"})
+  _describe 'command' commands -- sessions
+}
+compdef _mini mini`);
+} else if (!command) {
   console.log(`Usage: mini <command>
 
 Commands:
@@ -80,7 +121,10 @@ Commands:
   ls          Alias for list
   <name>      Connect to session (creates if needed)
 
-Sessions starting with "claude" run claude --enable-auto-mode.`);
+Sessions starting with "claude" run claude --enable-auto-mode.
+
+Completions:
+  eval "$(mini completions)"     Add to ~/.zshrc for tab completion`);
 } else if (command === "list" || command === "ls") {
   await list();
 } else {

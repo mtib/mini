@@ -30,6 +30,14 @@ Sessions are created in `~/workspace`. If the name starts with `claude`, `claude
 
 On connect, the terminal tab title is set to `mini - <name>`.
 
+## Completions
+
+Add to `~/.zshrc` for tab completion of commands and session names:
+
+```bash
+eval "$(mini completions)"
+```
+
 ## Warp
 
 For the best experience using Warp as your terminal, see [this gist](https://gist.github.com/mtib/4d2f595963b1635fbca9ed550a630357) for remote machine configuration.
