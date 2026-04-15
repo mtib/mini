@@ -71,7 +71,7 @@ async function list() {
     const style = s.name.startsWith("claude") ? orange : bold;
     const name = `${style}${s.name.padEnd(nameWidth)}${reset}`;
     const age = s.created ? `${dim}${relative(new Date(s.created))}${reset}` : "";
-    console.log(`  ${name}  ${age}`);
+    console.log(`${name}  ${age}`);
   }
 }
 
@@ -108,9 +108,9 @@ if (command === "completions") {
   console.log(`#compdef mini
 _mini() {
   local -a sessions commands
-  commands=('list:List tmux sessions' 'ls:Alias for list')
-  sessions=(\${(f)"$(ssh ${SSH_HOST} tmux list-sessions -F '#S' 2>/dev/null)"})
-  _describe 'command' commands -- sessions
+  _alternative \\
+    'commands:command:compadd list ls' \\
+    "sessions:session:compadd \$(ssh ${SSH_HOST} \"tmux list-sessions -F '#S'\" 2>/dev/null)"
 }
 compdef _mini mini`);
 } else if (!command) {
