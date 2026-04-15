@@ -43,86 +43,46 @@ async function list() {
   }
 }
 
-async function newSession(name?: string) {
-  if (!name) {
-    let sessions: string[] = [];
-    try {
-      const output = await ssh("tmux", "list-sessions");
-      sessions = parseSessions(output);
-    } catch {}
+async function connect(name: string) {
+  let sessions: string[] = [];
+  try {
+    const output = await ssh("tmux", "list-sessions");
+    sessions = parseSessions(output);
+  } catch {}
 
-    const used = new Set<number>();
-    for (const s of sessions) {
-      const m = s.match(/^claude-(\d+)$/);
-      if (m) used.add(parseInt(m[1]!, 10));
+  if (!sessions.includes(name)) {
+    if (name.startsWith("claude")) {
+      await ssh(`tmux new-session -d -s ${name} -c ~/workspace 'claude --enable-auto-mode'`);
+    } else {
+      await ssh(`tmux new-session -d -s ${name} -c ~/workspace`);
     }
-    let n = 1;
-    while (used.has(n)) n++;
-    name = `claude-${n}`;
   }
 
-  if (name.startsWith("claude-")) {
-    await ssh(`tmux new-session -d -s ${name} -c ~/workspace 'claude --enable-auto-mode'`);
-  } else {
-    await ssh(`tmux new-session -d -s ${name} -c ~/workspace`);
-  }
-
-  await attach(name);
-}
-
-async function attach(target: string) {
-  process.stdout.write(`\x1b]0;mini - ${target}\x07`);
+  process.stdout.write(`\x1b]0;mini - ${name}\x07`);
   const proc = Bun.spawn(
-    ["ssh", "-t", SSH_HOST, "tmux", "attach-session", "-t", target],
+    ["ssh", "-t", SSH_HOST, "tmux", "attach-session", "-t", name],
     { stdin: "inherit", stdout: "inherit", stderr: "inherit" },
   );
   const exitCode = await proc.exited;
   if (exitCode !== 0) {
-    console.error(`Failed to attach to session "${target}".`);
+    console.error(`Failed to attach to session "${name}".`);
     process.exit(1);
   }
 }
 
-const commands = ["list", "new", "attach"];
-const aliases: Record<string, string> = { ls: "list" };
+const [command] = process.argv.slice(2);
 
-function resolveCommand(input: string): string | null {
-  const matches = commands.filter((c) => c.startsWith(input));
-  return matches.length === 1 ? matches[0]! : null;
-}
-
-const [rawCommand, ...args] = process.argv.slice(2);
-const command = rawCommand ? aliases[rawCommand] ?? resolveCommand(rawCommand) ?? rawCommand : undefined;
-
-switch (command) {
-  case "list":
-    await list();
-    break;
-  case "new":
-    await newSession(args[0]);
-    break;
-  case "attach":
-    if (!args[0]) {
-      console.error("Usage: mini attach <name>");
-      process.exit(1);
-    }
-    await attach(args[0]);
-    break;
-  default:
-    if (rawCommand) {
-      const target = /^\d+$/.test(rawCommand) ? `claude-${rawCommand}` : rawCommand;
-      await attach(target);
-    } else {
-      console.log(`Usage: mini <command>
+if (!command) {
+  console.log(`Usage: mini <command>
 
 Commands:
-  list              List tmux sessions
-  new [name]        Create & attach (default: claude-<n>)
-  attach <name>     Attach to an existing session
-  <name>            Shorthand for attach
-  <n>               Shorthand for attach claude-<n>
+  list        List tmux sessions
+  ls          Alias for list
+  <name>      Connect to session (creates if needed)
 
-Any unambiguous prefix works (e.g. mini l, mini n, mini at).`);
-    }
-    break;
+Sessions starting with "claude" run claude --enable-auto-mode.`);
+} else if (command === "list" || command === "ls") {
+  await list();
+} else {
+  await connect(command);
 }

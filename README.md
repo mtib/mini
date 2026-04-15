@@ -21,19 +21,14 @@ bun link
 ## Usage
 
 ```
-mini list          # list tmux sessions
-mini new           # create claude-<n> session and attach
-mini new <name>    # create named session and attach
-mini attach <name> # attach to existing session
-mini <name>        # shorthand for attach
-mini <n>           # shorthand for attach claude-<n>
+mini list       # list tmux sessions
+mini ls         # alias for list
+mini <name>     # connect to session (creates if needed)
 ```
 
-Any unambiguous prefix works as a command (e.g. `mini l`, `mini n`, `mini a foo`). `ls` is an alias for `list`.
+Sessions are created in `~/workspace`. If the name starts with `claude`, `claude --enable-auto-mode` runs as the session command (session closes when claude exits).
 
-Sessions are created in `~/workspace`. If the name starts with `claude-`, `claude --enable-auto-mode` runs as the session command (session closes when claude exits).
-
-On attach, the terminal tab title is set to `mini - <name>`.
+On connect, the terminal tab title is set to `mini - <name>`.
 
 ## Warp
 
