@@ -13,7 +13,28 @@ export MINI_USERNAME="youruser"  # optional, defaults to $USER
 
 ## Install
 
-```bash
+### macOS — Homebrew
+
+```sh
+brew tap mtib/tap
+brew install mini
+```
+
+### Pre-built binary
+
+Download the latest binary for your platform from the [releases page](https://github.com/mtib/mini/releases/tag/latest), extract it, and place `mini` on your `PATH`.
+
+| Platform | File |
+|----------|------|
+| macOS (Apple Silicon) | `mini-aarch64-apple-darwin.tar.gz` |
+| macOS (Intel) | `mini-x86_64-apple-darwin.tar.gz` |
+| Linux x86_64 | `mini-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux aarch64 | `mini-aarch64-unknown-linux-gnu.tar.gz` |
+| Windows x86_64 | `mini-x86_64-pc-windows-msvc.zip` |
+
+### From source
+
+```sh
 bun install
 bun link
 ```
@@ -41,3 +62,10 @@ eval "$(mini completions)"
 ## Warp
 
 For the best experience using Warp as your terminal, see [this gist](https://gist.github.com/mtib/4d2f595963b1635fbca9ed550a630357) for remote machine configuration.
+
+## Brew tap setup (for contributors)
+
+The Homebrew formula lives in [mtib/homebrew-tap](https://github.com/mtib/homebrew-tap) and is updated automatically by CI on every push to `main`. To replicate this setup:
+
+1. Create a GitHub repo named `homebrew-tap`.
+2. Add a `TAP_TOKEN` secret to the `mini` repo — a fine-grained PAT with `Contents: Read and write` on the tap repo.

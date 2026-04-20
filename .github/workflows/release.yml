@@ -1,0 +1,185 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: bun-darwin-arm64
+            asset: mini-aarch64-apple-darwin.tar.gz
+          - target: bun-darwin-x64
+            asset: mini-x86_64-apple-darwin.tar.gz
+          - target: bun-linux-arm64
+            asset: mini-aarch64-unknown-linux-gnu.tar.gz
+          - target: bun-linux-x64
+            asset: mini-x86_64-unknown-linux-gnu.tar.gz
+          - target: bun-windows-x64
+            asset: mini-x86_64-pc-windows-msvc.zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build binary
+        run: bun build --compile --minify --target=${{ matrix.target }} --outfile=mini index.ts
+
+      - name: Package binary (unix)
+        if: ${{ !startsWith(matrix.target, 'bun-windows-') }}
+        run: tar -czf "${{ matrix.asset }}" mini
+
+      - name: Package binary (windows)
+        if: startsWith(matrix.target, 'bun-windows-')
+        run: zip "${{ matrix.asset }}" mini.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mini-${{ matrix.target }}
+          path: ${{ matrix.asset }}
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      arm64_sha: ${{ steps.checksums.outputs.arm64 }}
+      x86_64_sha: ${{ steps.checksums.outputs.x86_64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute version tag
+        id: version
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          DATE=$(date +%Y%m%d)
+          SHA=$(git rev-parse --short HEAD)
+          echo "tag=v${PKG_VERSION}-${DATE}-${SHA}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Compute SHA256 checksums
+        id: checksums
+        run: |
+          cd artifacts
+          sha256sum * | tee ../checksums.txt
+          echo "arm64=$(sha256sum mini-aarch64-apple-darwin.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "x86_64=$(sha256sum mini-x86_64-apple-darwin.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Create versioned release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${{ steps.version.outputs.tag }}
+          git tag "$TAG"
+          git push origin "$TAG"
+          cat > notes.md << EOF
+          ## Install
+
+          ### macOS (Homebrew)
+          \`\`\`
+          brew install mtib/tap/mini
+          \`\`\`
+
+          ### Direct download
+          Download the binary for your platform below and place it on your PATH.
+
+          ### Checksums
+          \`\`\`
+          $(cat checksums.txt)
+          \`\`\`
+          EOF
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file notes.md \
+            artifacts/* checksums.txt
+
+      - name: Move latest tag and release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${{ steps.version.outputs.tag }}
+          gh release delete latest --yes 2>/dev/null || true
+          git push origin :refs/tags/latest 2>/dev/null || true
+          git tag -f latest
+          git push origin latest
+          gh release create latest \
+            --title "Latest ($TAG)" \
+            --notes "Latest release: [$TAG](https://github.com/mtib/mini/releases/tag/$TAG)" \
+            --prerelease
+
+  update-tap:
+    name: Update Homebrew tap
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: mtib/homebrew-tap
+          token: ${{ secrets.TAP_TOKEN }}
+          path: tap
+
+      - name: Update formula
+        run: |
+          TAG=${{ needs.release.outputs.tag }}
+          ARM64=${{ needs.release.outputs.arm64_sha }}
+          X86_64=${{ needs.release.outputs.x86_64_sha }}
+          VERSION=${TAG#v}
+          cat > tap/Formula/mini.rb << FORMULA
+          class Mini < Formula
+            desc "CLI for managing tmux sessions on a remote machine via SSH"
+            homepage "https://github.com/mtib/mini"
+            version "${VERSION}"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/mtib/mini/releases/download/${TAG}/mini-aarch64-apple-darwin.tar.gz"
+                sha256 "${ARM64}"
+              end
+              on_intel do
+                url "https://github.com/mtib/mini/releases/download/${TAG}/mini-x86_64-apple-darwin.tar.gz"
+                sha256 "${X86_64}"
+              end
+            end
+
+            def install
+              bin.install "mini"
+            end
+
+            test do
+              assert_predicate bin/"mini", :exist?
+            end
+          end
+          FORMULA
+
+      - name: Commit and push formula
+        run: |
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/mini.rb
+          git diff --cached --quiet || git commit -m "mini: update to ${{ needs.release.outputs.tag }}"
+          git push
