@@ -33,7 +33,7 @@ function parseSessions(output: string): string[] {
 async function list() {
   let output: string;
   try {
-    output = await ssh("tmux", "list-sessions", "-F", "#{session_name}");
+    output = await ssh("tmux", "list-sessions", "-F", "'#S'");
   } catch (e: any) {
     if (e.message.includes("no server running") || e.message.includes("no sessions")) {
       console.log("No tmux sessions.");
