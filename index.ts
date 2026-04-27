@@ -62,7 +62,7 @@ async function connect(name: string) {
 
   if (!sessions.includes(name)) {
     if (name.startsWith("claude")) {
-      await ssh(`tmux new-session -d -s ${name} -c ~/workspace 'claude --enable-auto-mode'`);
+      await ssh(`tmux new-session -d -s ${name} -c ~/workspace 'zsh -c "source ~/.zprofile 2>/dev/null; source ~/.zshrc 2>/dev/null; exec claude --enable-auto-mode"'`);
     } else {
       await ssh(`tmux new-session -d -s ${name} -c ~/workspace`);
     }
