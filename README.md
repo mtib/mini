@@ -8,7 +8,8 @@ Set these environment variables (e.g. in `~/.zprofile`):
 
 ```bash
 export MINI_HOST="your-host"
-export MINI_USERNAME="youruser"  # optional, defaults to $USER
+export MINI_USERNAME="youruser"    # optional, defaults to $USER
+export MINI_WORKSPACE="~/projects" # optional, defaults to ~/workspace
 ```
 
 ## Install
@@ -42,12 +43,15 @@ bun link
 ## Usage
 
 ```
-mini list       # list tmux sessions
-mini ls         # alias for list
-mini <name>     # connect to session (creates if needed)
+mini list                 # list tmux sessions
+mini ls                   # alias for list
+mini <name>               # connect to session (creates if needed)
+mini -w ~/other <name>    # create the session in ~/other instead
 ```
 
-Sessions are created in `~/workspace`. If the name starts with `claude`, `claude --enable-auto-mode` runs as the session command (session closes when claude exits).
+New sessions start in, in order of priority: the `-w` / `--workspace` argument, `$MINI_WORKSPACE`, or `~/workspace`. The path is expanded by the remote shell, so `~` works.
+
+If the name starts with `claude`, `claude --enable-auto-mode` runs as the session command (session closes when claude exits).
 
 On connect, the terminal tab title is set to `mini - <name>`.
 

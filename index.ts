@@ -8,6 +8,19 @@ if (!username || !host) {
 }
 const SSH_HOST = `${username}@${host}`;
 
+const argv = process.argv.slice(2);
+const wIndex = argv.findIndex((a) => a === "-w" || a === "--workspace");
+let workspaceArg: string | undefined;
+if (wIndex !== -1) {
+  workspaceArg = argv[wIndex + 1];
+  if (!workspaceArg) {
+    console.error("Missing path after -w.");
+    process.exit(1);
+  }
+  argv.splice(wIndex, 2);
+}
+const WORKSPACE = workspaceArg || process.env.MINI_WORKSPACE || "~/workspace";
+
 async function ssh(...args: string[]): Promise<string> {
   const proc = Bun.spawn(["ssh", SSH_HOST, ...args], {
     stdout: "pipe",
@@ -62,9 +75,9 @@ async function connect(name: string) {
 
   if (!sessions.includes(name)) {
     if (name.startsWith("claude")) {
-      await ssh(`tmux new-session -d -s ${name} -c ~/workspace 'zsh -c "source ~/.zprofile 2>/dev/null; source ~/.zshrc 2>/dev/null; exec claude --enable-auto-mode"'`);
+      await ssh(`tmux new-session -d -s ${name} -c ${WORKSPACE} 'zsh -c "source ~/.zprofile 2>/dev/null; source ~/.zshrc 2>/dev/null; exec claude --enable-auto-mode"'`);
     } else {
-      await ssh(`tmux new-session -d -s ${name} -c ~/workspace`);
+      await ssh(`tmux new-session -d -s ${name} -c ${WORKSPACE}`);
     }
   }
 
@@ -80,7 +93,7 @@ async function connect(name: string) {
   }
 }
 
-const [command] = process.argv.slice(2);
+const [command] = argv;
 
 if (command === "completions") {
   console.log(`#compdef mini
@@ -92,12 +105,16 @@ _mini() {
 }
 compdef _mini mini`);
 } else if (!command) {
-  console.log(`Usage: mini <command>
+  console.log(`Usage: mini [-w <path>] <command>
 
 Commands:
   list        List tmux sessions
   ls          Alias for list
   <name>      Connect to session (creates if needed)
+
+Options:
+  -w, --workspace <path>   Directory new sessions start in
+                           (default: $MINI_WORKSPACE, else ~/workspace)
 
 Sessions starting with "claude" run claude --enable-auto-mode.
 
