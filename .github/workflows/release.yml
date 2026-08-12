@@ -61,6 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.version.outputs.tag }}
+      formula_version: ${{ steps.version.outputs.formula_version }}
       arm64_sha: ${{ steps.checksums.outputs.arm64 }}
       x86_64_sha: ${{ steps.checksums.outputs.x86_64 }}
     steps:
@@ -73,6 +74,7 @@ jobs:
           DATE=$(date +%Y%m%d)
           SHA=$(git rev-parse --short HEAD)
           echo "tag=v${PKG_VERSION}-${DATE}-${SHA}" >> $GITHUB_OUTPUT
+          echo "formula_version=${PKG_VERSION}.${DATE}.${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -147,7 +149,7 @@ jobs:
           TAG=${{ needs.release.outputs.tag }}
           ARM64=${{ needs.release.outputs.arm64_sha }}
           X86_64=${{ needs.release.outputs.x86_64_sha }}
-          VERSION=${TAG#v}
+          VERSION=${{ needs.release.outputs.formula_version }}
           cat > tap/Formula/mini.rb << FORMULA
           class Mini < Formula
             desc "CLI for managing tmux sessions on a remote machine via SSH"
