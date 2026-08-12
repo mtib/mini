@@ -18,6 +18,7 @@ export MINI_WORKSPACE="~/projects" # optional, defaults to ~/workspace
 
 ```sh
 brew tap mtib/tap
+brew trust mtib/tap   # Homebrew 6+ refuses to load formulae from untrusted taps
 brew install mini
 ```
 
