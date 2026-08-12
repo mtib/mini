@@ -22,6 +22,14 @@ brew trust mtib/tap   # Homebrew 6+ refuses to load formulae from untrusted taps
 brew install mini
 ```
 
+Upgrade:
+
+```sh
+brew update && brew upgrade mini
+```
+
+Every push to `main` publishes a release and bumps the tap formula, so upgrades track `main`.
+
 ### Pre-built binary
 
 Download the latest binary for your platform from the [releases page](https://github.com/mtib/mini/releases/tag/latest), extract it, and place `mini` on your `PATH`.
